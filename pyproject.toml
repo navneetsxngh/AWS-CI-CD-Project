@@ -1,0 +1,9 @@
+[project]
+name = "scoreiq"
+version = "0.1.0"
+description = "ScoreIQ ML Application"
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

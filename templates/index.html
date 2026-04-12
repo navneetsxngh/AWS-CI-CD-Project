@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ScoreIQ — Student Performance Predictor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0b0f1a;
+      --surface:   #111827;
+      --surface2:  #1c2540;
+      --border:    rgba(255,255,255,0.07);
+      --amber:     #f5a623;
+      --amber-dim: #c47d0e;
+      --teal:      #2dd4bf;
+      --text:      #e8eaf0;
+      --muted:     #8892aa;
+      --font-head: 'Syne', sans-serif;
+      --font-mono: 'DM Mono', monospace;
+      --font-body: 'DM Sans', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(245,166,35,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2.5rem;
+      height: 64px;
+      background: rgba(11,15,26,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: var(--font-head);
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+    .nav-logo span { color: var(--amber); }
+
+    .nav-tag {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 4rem;
+      padding: 120px 5rem 5rem;
+    }
+
+    .hero-left { max-width: 580px; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(245,166,35,0.1);
+      border: 1px solid rgba(245,166,35,0.25);
+      border-radius: 2px;
+      padding: 0.3rem 0.8rem;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--amber);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 2rem;
+      animation: fadeUp 0.6s ease both;
+    }
+    .badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--amber);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--amber);
+    }
+
+    h1 {
+      font-family: var(--font-head);
+      font-size: clamp(2.8rem, 5vw, 4.2rem);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -1.5px;
+      margin-bottom: 1.5rem;
+      animation: fadeUp 0.6s 0.1s ease both;
+    }
+    h1 em {
+      font-style: normal;
+      color: var(--amber);
+    }
+
+    .hero-desc {
+      font-size: 1.05rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 2.5rem;
+      max-width: 440px;
+      animation: fadeUp 0.6s 0.2s ease both;
+    }
+
+    .hero-cta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      animation: fadeUp 0.6s 0.3s ease both;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: var(--amber);
+      color: #0b0f1a;
+      font-family: var(--font-head);
+      font-weight: 700;
+      font-size: 0.9rem;
+      padding: 0.85rem 1.8rem;
+      border-radius: 2px;
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 0 0 0 rgba(245,166,35,0.4);
+    }
+    .btn-primary:hover {
+      background: #f7b840;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(245,166,35,0.3);
+    }
+
+    .btn-ghost {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: color 0.2s;
+    }
+    .btn-ghost:hover { color: var(--text); }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: flex;
+      gap: 2rem;
+      margin-top: 3.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      animation: fadeUp 0.6s 0.4s ease both;
+    }
+
+    .stat { }
+    .stat-val {
+      font-family: var(--font-head);
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--amber);
+    }
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 0.2rem;
+    }
+
+    /* ── HERO RIGHT — VISUAL CARD ── */
+    .hero-right {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      animation: fadeUp 0.7s 0.2s ease both;
+    }
+
+    .visual-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 400px;
+      position: relative;
+      overflow: hidden;
+    }
+    .visual-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--amber), var(--teal), transparent);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+    .card-title {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .card-dots { display: flex; gap: 5px; }
+    .card-dots span {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+    .card-dots span:first-child { background: #ef4444; }
+    .card-dots span:nth-child(2) { background: #f59e0b; }
+    .card-dots span:last-child { background: #22c55e; }
+
+    .bar-chart { display: flex; flex-direction: column; gap: 0.9rem; }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+    .bar-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      width: 52px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .bar-track {
+      flex: 1;
+      height: 6px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      animation: barGrow 1.2s ease both;
+      transform-origin: left;
+    }
+    @keyframes barGrow {
+      from { transform: scaleX(0); opacity: 0; }
+      to   { transform: scaleX(1); opacity: 1; }
+    }
+
+    .bar-val {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text);
+      width: 30px;
+      flex-shrink: 0;
+    }
+
+    .score-box {
+      margin-top: 1.5rem;
+      background: rgba(245,166,35,0.06);
+      border: 1px solid rgba(245,166,35,0.15);
+      border-radius: 3px;
+      padding: 1rem 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .score-box-label {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .score-box-val {
+      font-family: var(--font-head);
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--amber);
+    }
+    .score-box-sub {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--teal);
+      margin-top: 0.15rem;
+    }
+
+    /* ── FEATURES SECTION ── */
+    .features {
+      position: relative;
+      z-index: 1;
+      padding: 6rem 5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--amber);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .section-title {
+      font-family: var(--font-head);
+      font-size: clamp(1.8rem, 3vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 3.5rem;
+    }
+
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5px;
+      background: var(--border);
+    }
+
+    .feat-card {
+      background: var(--bg);
+      padding: 2.2rem;
+      transition: background 0.2s;
+    }
+    .feat-card:hover { background: var(--surface); }
+
+    .feat-icon {
+      width: 40px; height: 40px;
+      background: rgba(245,166,35,0.08);
+      border: 1px solid rgba(245,166,35,0.2);
+      border-radius: 3px;
+      display: grid;
+      place-items: center;
+      font-size: 1.1rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .feat-name {
+      font-family: var(--font-head);
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.6rem;
+    }
+
+    .feat-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── MODELS SECTION ── */
+    .models {
+      position: relative;
+      z-index: 1;
+      padding: 6rem 5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .model-list {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-top: 2.5rem;
+    }
+
+    .model-pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1rem 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      transition: border-color 0.2s;
+    }
+    .model-pill:hover { border-color: rgba(245,166,35,0.4); }
+
+    .model-name {
+      font-family: var(--font-head);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+    .model-tag {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    /* ── CTA BAND ── */
+    .cta-band {
+      position: relative;
+      z-index: 1;
+      padding: 5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 3rem;
+    }
+
+    .cta-band h2 {
+      font-family: var(--font-head);
+      font-size: clamp(1.6rem, 2.5vw, 2.2rem);
+      font-weight: 800;
+      letter-spacing: -1px;
+      max-width: 500px;
+    }
+    .cta-band h2 span { color: var(--amber); }
+
+    /* ── FOOTER ── */
+    footer {
+      position: relative;
+      z-index: 1;
+      padding: 1.5rem 5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    footer p {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .aws-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+    }
+    .aws-dot {
+      width: 6px; height: 6px;
+      background: #22c55e;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #22c55e;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; padding: 100px 2rem 3rem; }
+      .hero-right { display: none; }
+      .features, .models, .cta-band { padding: 4rem 2rem; }
+      .feat-grid { grid-template-columns: 1fr; }
+      .model-list { grid-template-columns: repeat(2,1fr); }
+      footer { flex-direction: column; gap: 1rem; text-align: center; }
+      .cta-band { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="nav-logo">Score<span>IQ</span></div>
+    <div class="nav-tag">ML · Student Performance · AWS EB</div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-left">
+      <div class="badge">End-to-End ML Project</div>
+      <h1>Predict Student <em>Math Scores</em> with ML</h1>
+      <p class="hero-desc">
+        A production-grade machine learning pipeline that predicts exam performance
+        from demographic and academic inputs — built, trained, and deployed on AWS Elastic Beanstalk.
+      </p>
+      <div class="hero-cta">
+        <a href="/predictdata" class="btn-primary">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          Run Prediction
+        </a>
+        <a href="https://github.com/navneetsxngh/Ml-Project-Learning" target="_blank" class="btn-ghost">
+          <svg width="13" height="13" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          View Source
+        </a>
+      </div>
+      <div class="stats-row">
+        <div class="stat">
+          <div class="stat-val">8+</div>
+          <div class="stat-label">Models Trained</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val">7</div>
+          <div class="stat-label">Input Features</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val">AWS</div>
+          <div class="stat-label">Deployed On</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="visual-card">
+        <div class="card-header">
+          <div class="card-title">Model Performance</div>
+          <div class="card-dots"><span></span><span></span><span></span></div>
+        </div>
+        <div class="bar-chart">
+          <div class="bar-row">
+            <div class="bar-label">XGBoost</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:88%;background:linear-gradient(90deg,#f5a623,#f7b840);animation-delay:0.1s"></div>
+            </div>
+            <div class="bar-val">88%</div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label">CatBoost</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:85%;background:linear-gradient(90deg,#2dd4bf,#38bdf8);animation-delay:0.2s"></div>
+            </div>
+            <div class="bar-val">85%</div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label">GBR</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:82%;background:linear-gradient(90deg,#a78bfa,#7c3aed);animation-delay:0.3s"></div>
+            </div>
+            <div class="bar-val">82%</div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label">RForest</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:79%;background:linear-gradient(90deg,#f472b6,#ec4899);animation-delay:0.4s"></div>
+            </div>
+            <div class="bar-val">79%</div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-label">Ridge</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:74%;background:linear-gradient(90deg,#6ee7b7,#22c55e);animation-delay:0.5s"></div>
+            </div>
+            <div class="bar-val">74%</div>
+          </div>
+        </div>
+        <div class="score-box">
+          <div>
+            <div class="score-box-label">Predicted Score</div>
+            <div class="score-box-sub">↑ 12% above avg</div>
+          </div>
+          <div class="score-box-val">78.4</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features">
+    <div class="section-label">How it works</div>
+    <div class="section-title">A Complete ML Pipeline</div>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon">📥</div>
+        <div class="feat-name">Data Ingestion</div>
+        <div class="feat-desc">Automated ingestion splits raw CSVs into train and test sets with full logging and exception tracking.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">⚙️</div>
+        <div class="feat-name">Transformation</div>
+        <div class="feat-desc">Numerical features are scaled; categorical variables are one-hot encoded via a saved preprocessing pipeline.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🏋️</div>
+        <div class="feat-name">Model Training</div>
+        <div class="feat-desc">Multiple regressors are benchmarked; the best R² model is serialised to <code>artifacts/</code> automatically.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🔮</div>
+        <div class="feat-name">Prediction API</div>
+        <div class="feat-desc">A Flask endpoint loads the pickled model and preprocessor to return a real-time predicted math score.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">☁️</div>
+        <div class="feat-name">AWS Beanstalk</div>
+        <div class="feat-desc">Deployed via Elastic Beanstalk with <code>.ebextensions</code> config, zero-downtime updates, and auto-scaling.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">📊</div>
+        <div class="feat-name">EDA Notebooks</div>
+        <div class="feat-desc">Jupyter notebooks provide full exploratory analysis — distributions, correlations, and feature importance charts.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODELS -->
+  <section class="models">
+    <div class="section-label">Algorithms evaluated</div>
+    <div class="section-title">8 Regressors, 1 Winner</div>
+    <div class="model-list">
+      <div class="model-pill"><div class="model-name">XGBoost</div><div class="model-tag">Gradient Boosting · Best R²</div></div>
+      <div class="model-pill"><div class="model-name">CatBoost</div><div class="model-tag">Categorical Boosting</div></div>
+      <div class="model-pill"><div class="model-name">Gradient Boost</div><div class="model-tag">Ensemble · sklearn</div></div>
+      <div class="model-pill"><div class="model-name">Random Forest</div><div class="model-tag">Bagging Ensemble</div></div>
+      <div class="model-pill"><div class="model-name">Decision Tree</div><div class="model-tag">Non-linear</div></div>
+      <div class="model-pill"><div class="model-name">AdaBoost</div><div class="model-tag">Adaptive Boosting</div></div>
+      <div class="model-pill"><div class="model-name">Ridge</div><div class="model-tag">L2 Regularised</div></div>
+      <div class="model-pill"><div class="model-name">Linear Reg.</div><div class="model-tag">Baseline</div></div>
+    </div>
+  </section>
+
+  <!-- CTA BAND -->
+  <section class="cta-band">
+    <h2>Ready to predict a <span>student's math score</span>?</h2>
+    <a href="/predictdata" class="btn-primary" style="white-space:nowrap;flex-shrink:0;">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      Open Predictor
+    </a>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <p>ScoreIQ · ML Project · navneetsxngh · 2024</p>
+    <div class="aws-badge">
+      <div class="aws-dot"></div>
+      Deployed · AWS Elastic Beanstalk
+    </div>
+  </footer>
+
+</body>
+</html>
