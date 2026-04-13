@@ -1,57 +1,38 @@
-name: CI/CD Pipeline — ScoreIQ (Student Performance Prediction)
+name: workflow
 
-# ── Triggers ──────────────────────────────────────────────────────────────────
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
 
-# ── Shared environment variables ──────────────────────────────────────────────
-env:
-  AWS_REGION: ap-south-1                  # Region from README (ap-south-1)
-  ECR_REPOSITORY: scoreiq-app            # Match pyproject.toml name "scoreiq"
-  EB_APPLICATION_NAME: ml-student-performance   # Your EB app name
-  EB_ENVIRONMENT_NAME: ml-student-env           # Your EB environment name
-  # Dockerfile uses python:3.13-slim; pyproject.toml requires >=3.10
-  PYTHON_VERSION: "3.13"
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 1 — Lint & Test (CI)
-  # Runs on every push and every PR to main
-  # ─────────────────────────────────────────────────────────────────────────────
-  lint-and-test:
-    name: 🔍 Lint & Test
+  integration:
+    name: Continuous Integration
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Python version matches Dockerfile base image (python:3.13-slim)
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
+          python-version: '3.13'
+          cache: 'pip'
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -e .
+          pip install flake8
 
-      # pyproject.toml uses setuptools as build backend → pip install -e . works
-      - name: Install project package (editable)
-        run: pip install -e .
-
-      - name: Install linting tools
-        run: pip install flake8
-
-      # Lint src/ and application.py (entry point named in README)
-      # NOTE: Dockerfile CMD says "python app.py" but README says application.py
-      #       Linting both to surface any discrepancy
-      - name: Lint — hard errors (syntax / undefined names)
+      - name: Lint code
         run: |
           flake8 src/ application.py \
             --count \
@@ -59,101 +40,58 @@ jobs:
             --show-source \
             --statistics
 
-      - name: Lint — style warnings (non-blocking)
-        run: |
-          flake8 src/ application.py \
-            --count \
-            --exit-zero \
-            --max-complexity=10 \
-            --max-line-length=120 \
-            --statistics
-
-      # No tests/ directory exists in the repo — step is present but skipped safely
-      - name: Run tests (skipped — no tests/ directory in repo)
+      - name: Run unit tests
         run: |
           if [ -d "tests" ]; then
             pip install pytest
             pytest tests/ -v --tb=short
           else
-            echo "⚠️  No tests/ directory found — skipping pytest."
+            echo "No tests/ directory found — skipping"
           fi
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 2 — Build Docker image & push to Amazon ECR
-  # Runs only on direct pushes to main (not on PRs)
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-and-push:
-    name: 🐳 Build & Push to ECR
+  build-and-push-ecr-image:
+    name: Continuous Delivery
+    needs: integration
     runs-on: ubuntu-latest
-    needs: lint-and-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tag }}
-      registry: ${{ steps.login-ecr.outputs.registry }}
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Install Utilities
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq unzip
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Short SHA tag for traceability + "latest" for EB Dockerrun reference
-      - name: Compute image tag
-        id: meta
-        run: |
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
-
-      # .dockerignore already excludes: artifacts/, *.pkl, *.joblib, models/,
-      # data/, datasets/, __pycache__/, .env, venv/, notebooks/, catboost_info/
-      # No extra --build-arg needed; image runs python:3.13-slim with CMD app.py
-      - name: Build Docker image
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG: ${{ steps.meta.outputs.tag }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
+          IMAGE_TAG: latest
         run: |
-          docker build \
-            --tag "${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}" \
-            --tag "${REGISTRY}/${{ env.ECR_REPOSITORY }}:latest" \
-            --file Dockerfile \
-            .
-
-      - name: Push Docker image to ECR
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG: ${{ steps.meta.outputs.tag }}
-        run: |
-          docker push "${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}"
-          docker push "${REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
-          echo "✅ Pushed: ${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}"
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 3 — Deploy to AWS Elastic Beanstalk (Docker platform)
-  #
-  # Strategy: create a Dockerrun.aws.json v2 that points EB to the ECR image
-  # that was just pushed. This avoids needing .ebextensions/ (absent from repo)
-  # and matches how Docker-based EB environments actually work.
-  #
-  # Runs only on direct pushes to main, after ECR push succeeds.
-  # ─────────────────────────────────────────────────────────────────────────────
-  deploy:
-    name: 🚀 Deploy to Elastic Beanstalk
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
+          # Build a docker container and
+          # push it to ECR so that it can
+          # be deployed to ECS.
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          
+          
+  Continuous-Deployment:
+    needs: build-and-push-ecr-image
+    runs-on: self-hosted
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
@@ -161,82 +99,24 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Login to Amazon ECR (needed for image URI)
+      - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
-      # Build a minimal Dockerrun.aws.json pointing to the freshly-pushed image.
-      # EB Docker platform picks this up automatically as the deployment manifest.
-      - name: Generate Dockerrun.aws.json
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          TAG: ${{ needs.build-and-push.outputs.image-tag }}
+      
+      
+      - name: Pull latest images
         run: |
-          cat > Dockerrun.aws.json <<EOF
-          {
-            "AWSEBDockerrunVersion": "1",
-            "Image": {
-              "Name": "${REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}",
-              "Update": "true"
-            },
-            "Ports": [
-              { "ContainerPort": 5000, "HostPort": 80 }
-            ],
-            "Logging": "/var/log/app"
-          }
-          EOF
-          echo "Dockerrun.aws.json:"
-          cat Dockerrun.aws.json
-
-      # Zip only what EB needs: the Dockerrun manifest.
-      # All app code is already baked into the Docker image.
-      # Excluded by .dockerignore (already verified): artifacts/, catboost_info/,
-      # notebooks/, *.pkl, *.joblib, __pycache__/, .env, venv/
-      - name: Create EB deployment bundle
+         docker pull ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
+         
+      - name: Stop and remove container if running
         run: |
-          TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          echo "TIMESTAMP=${TIMESTAMP}" >> $GITHUB_ENV
-          zip deploy-${TIMESTAMP}.zip Dockerrun.aws.json
-          echo "BUNDLE=deploy-${TIMESTAMP}.zip" >> $GITHUB_ENV
-
-      - name: Upload bundle to S3
+          docker ps -q --filter "name=mltest" | grep -q . && docker stop mltest && docker rm -fv mltest || true
+       
+      - name: Run Docker Image to serve users
         run: |
-          BUNDLE_KEY="eb-deployments/${BUNDLE}"
-          aws s3 cp "${BUNDLE}" "s3://${{ secrets.EB_S3_BUCKET }}/${BUNDLE_KEY}"
-          echo "BUNDLE_KEY=${BUNDLE_KEY}" >> $GITHUB_ENV
-
-      - name: Create Elastic Beanstalk application version
+         docker run -d -p 8080:8080 --ipc="host" --name=mltest -e 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' -e 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' -e 'AWS_REGION=${{ secrets.AWS_REGION }}'  ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
+      - name: Clean previous images and containers
         run: |
-          VERSION_LABEL="v-${TIMESTAMP}-${{ github.sha }}"
-          aws elasticbeanstalk create-application-version \
-            --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --version-label "${VERSION_LABEL}" \
-            --source-bundle "S3Bucket=${{ secrets.EB_S3_BUCKET }},S3Key=${BUNDLE_KEY}" \
-            --description "GitHub Actions deploy — commit ${{ github.sha }}"
-          echo "VERSION_LABEL=${VERSION_LABEL}" >> $GITHUB_ENV
-
-      - name: Deploy application version to EB environment
-        run: |
-          aws elasticbeanstalk update-environment \
-            --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --environment-name "${{ env.EB_ENVIRONMENT_NAME }}" \
-            --version-label "${VERSION_LABEL}"
-
-      - name: Wait for EB environment to become healthy
-        run: |
-          echo "Polling Elastic Beanstalk until environment is Ready..."
-          aws elasticbeanstalk wait environment-updated \
-            --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --environment-names "${{ env.EB_ENVIRONMENT_NAME }}"
-          echo "✅ Deployment complete!"
-
-      - name: Print live URL
-        run: |
-          CNAME=$(aws elasticbeanstalk describe-environments \
-            --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --environment-names "${{ env.EB_ENVIRONMENT_NAME }}" \
-            --query "Environments[0].CNAME" \
-            --output text)
-          echo "🌐 App is live at: http://${CNAME}"
+         docker system prune -f
